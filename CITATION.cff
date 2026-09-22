@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: "BioCollaborator Health Informatics Programme"
+message: "If you use this course material or the Ilanga synthetic dataset, please cite it as below."
+type: software
+authors:
+  - family-names: Gumede
+    given-names: Thembelihle
+    affiliation: BioCollaborator
+repository-code: "https://github.com/BioCollaborator/ilanga-health-informatics"
+abstract: >-
+  A 16-module, Google Colab-based health informatics programme set in South Africa.
+  Learners work as analysts for a fictional health data company serving a fully synthetic
+  KwaZulu-Natal district, covering Python, POPIA, FHIR, SQL, routine indicators,
+  laboratory informatics, knowledge graphs and machine learning.
+keywords:
+  - health informatics
+  - digital health
+  - South Africa
+  - synthetic data
+  - FHIR
+  - POPIA
+  - education
+license: MIT
+version: 1.0.0
+date-released: 2026-09-22
