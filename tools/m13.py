@@ -1,0 +1,279 @@
+from nb import md, code, ex, SETUP, FOOTER, colab_badge
+
+PATH = "notebooks/phase4_advanced/M13_knowledge_graphs_neo4j.ipynb"
+
+CELLS = [
+md(f"""
+# Module 13 · Connected care — knowledge graphs with NetworkX and Neo4j
+**BioCollaborator Health Informatics Programme** · Phase 4: Advanced & Capstone · *Innovate Naturally*
+
+{colab_badge(PATH)}
+
+> **File → Save a copy in Drive**, then run cells top to bottom with **Shift + Enter**.
+"""),
+code(SETUP),
+code('''
+import networkx as nx
+from ilanga import graph as ig
+
+ilanga.brand.banner(13, "Connected care: knowledge graphs", "Phase 4 · Advanced & Capstone", minutes=150)
+ilanga.brand.ticket(
+    "NQ-013", "Dr Priya Naidoo", "Clinical Governance Lead, Ilanga District Health Services",
+    "Map referral pathways and continuity of care",
+    "Patients don't live in one clinic. They move between clinics, get referred up, get lost on the way. Tables make "
+    "that journey hard to see. I want the district's referral network, a picture of which facilities share patients, "
+    "and a way to ask connected questions - like which patients have both HIV and TB and an unsuppressed latest viral "
+    "load - without writing a six-way join every time.",
+    ["A directed referral network with referral counts and arrivals on each pathway",
+     "A shared-patient network showing which facilities care for the same people",
+     "A multi-hop query over the district knowledge graph",
+     "The same questions written in Cypher for Neo4j"],
+    priority="Normal")
+'''),
+md("""
+## Part 1 · Why graphs?
+
+In a table, relationships are hidden in foreign keys, and following them means joins. Ask "patients with HIV **and**
+TB whose **latest** viral load is unsuppressed, registered at a clinic that **refers to** the regional hospital" and
+the SQL gets long, slow and fragile. In a **graph**, relationships are stored as first-class things you can walk.
+
+The **property graph** model has three ingredients:
+
+| Ingredient | Example |
+|---|---|
+| **Nodes** with labels | `(:Patient)`, `(:Facility)`, `(:Condition)`, `(:LabResult)` |
+| **Relationships** with types and direction | `(:Facility)-[:REFERS_TO]->(:Facility)` |
+| **Properties** on both | `{name: "Ezimbali Clinic"}`, `{referrals: 87}` |
+
+**Neo4j** is the most widely used graph database, and **Cypher** is its query language. Cypher patterns look like
+the drawings you'd make on a whiteboard:
+
+```cypher
+MATCH (a:Facility)-[r:REFERS_TO]->(b:Facility {type: "Regional Hospital"})
+RETURN a.name, r.referrals
+```
+
+We'll do the analysis in **NetworkX** (a Python graph library that runs anywhere, including Colab) and then show
+the Neo4j version, which you can run for free on a Neo4j AuraDB instance.
+
+## Part 2 · The referral network
+
+### 🌱 Seedling — build the referral graph
+Build `referral_graph`: a **directed** NetworkX graph (`nx.DiGraph`) where every facility is a node, and each
+referral pathway `from_facility_id → to_facility_id` is an edge with attributes `weight` (number of referrals) and
+`arrived` (number where the outcome was *Seen*). Hints: `ilanga.hint("NQ-013.1")`.
+"""),
+ex('''
+d = ilanga.load_district()
+referral_graph = None   # 👈 your code here
+''', '''
+d = ilanga.load_district()
+ref = d.referrals.assign(arrived=(d.referrals["outcome"] == "Seen").astype(int))
+pathways = ref.groupby(["from_facility_id", "to_facility_id"]).agg(weight=("referral_id", "size"), arrived=("arrived", "sum"))
+
+referral_graph = nx.DiGraph()
+referral_graph.add_nodes_from(d.facilities["facility_id"])
+for (a, b), row in pathways.iterrows():
+    referral_graph.add_edge(a, b, weight=int(row["weight"]), arrived=int(row["arrived"]))
+print(referral_graph)
+'''),
+code('''
+if referral_graph is not None:
+    names = d.facilities.set_index("facility_id")["facility_name"].str.replace(" Clinic", "").str.replace(" Hospital", " Hosp")
+    pos = {r.facility_id: (r.longitude, r.latitude) for r in d.facilities.itertuples()}   # draw on the map
+    edges = list(referral_graph.edges(data=True))
+    rates = [e["arrived"] / e["weight"] for _, _, e in edges]
+
+    fig, ax = plt.subplots(figsize=(9, 6.5))
+    nx.draw_networkx_nodes(referral_graph, pos, node_size=[300 + 40 * referral_graph.in_degree(n, weight="weight") ** 0.5
+                                                            for n in referral_graph], node_color=BRAND["teal"], ax=ax)
+    nx.draw_networkx_edges(referral_graph, pos, width=[1 + e["weight"] / 150 for _, _, e in edges],
+                           edge_color=rates, edge_cmap=plt.cm.RdYlGn, edge_vmin=0.6, edge_vmax=0.9,
+                           arrows=True, arrowsize=14, connectionstyle="arc3,rad=0.12", ax=ax)
+    nx.draw_networkx_labels(referral_graph, pos, labels=names.to_dict(), font_size=7, ax=ax)
+    ax.set_title("Referral network (edge colour = arrival rate: red = more patients lost)"); ax.axis("off")
+    plt.show()
+
+    arrival = pd.DataFrame([(names[a], names[b], e["weight"], round(100 * e["arrived"] / e["weight"], 1))
+                            for a, b, e in edges], columns=["from", "to", "referrals", "arrival_%"])
+    display(arrival.sort_values("arrival_%"))
+'''),
+md("""
+> 🩺 **Clinic Corner — a referral that doesn't arrive is a patient lost**
+>
+> Every red edge is a pathway where patients are referred and never seen. The reasons are rarely clinical:
+> transport money, childcare, fear, a letter that didn't travel with the patient. Graphs make these weak links
+> visible in a way a spreadsheet of 2,700 referrals never will.
+
+## Part 3 · Which facilities share patients?
+
+Patients use more than one facility. When two facilities share many patients, they need to share **information**
+too — that's where continuity of care breaks, and where e-Impilo's shared record matters most.
+
+### 🌿 Sapling — the shared-patient network
+Build `shared_patients`: a DataFrame with columns `facility_a`, `facility_b` and `patients` — for every pair of
+facilities, the number of **distinct patients who visited both** (from encounters). Hints: `ilanga.hint("NQ-013.2")`.
+"""),
+ex('''
+shared_patients = None   # 👈 your code here
+''', '''
+from collections import Counter
+from itertools import combinations
+
+visited = d.encounters.groupby("patient_id")["facility_id"].unique()
+pairs = Counter()
+for facilities in visited:
+    for a, b in combinations(sorted(facilities), 2):
+        pairs[(a, b)] += 1
+shared_patients = pd.DataFrame([(a, b, n) for (a, b), n in pairs.items()], columns=["facility_a", "facility_b", "patients"])
+shared_patients.sort_values("patients", ascending=False).head(8)
+'''),
+code('''
+if shared_patients is not None:
+    S = nx.Graph()
+    for r in shared_patients.itertuples():
+        S.add_edge(r.facility_a, r.facility_b, weight=r.patients)
+    centrality = pd.Series(nx.degree_centrality(S)).sort_values(ascending=False)
+    strength = pd.Series(dict(S.degree(weight="weight"))).sort_values(ascending=False)
+    communities = nx.community.louvain_communities(S, weight="weight", seed=1)
+    print("Communities of facilities that share patients:")
+    for i, c in enumerate(communities, 1):
+        print(f"  {i}:", ", ".join(sorted(names[f] for f in c)))
+    display(pd.DataFrame({"shared_patients (strength)": strength, "degree_centrality": centrality.round(2)}).head(6))
+'''),
+md("""
+> 💻 **Code Corner — graph algorithms in one line**
+>
+> **Degree centrality** counts connections; **weighted degree** ("strength") sums shared patients; **community
+> detection** (Louvain) finds groups of nodes more connected to each other than to the rest. In Neo4j, the Graph Data
+> Science library runs the same algorithms at much larger scale. If communities line up with sub-districts, patient
+> movement follows geography. If they don't, something else is pulling patients across boundaries.
+
+## Part 4 · A district knowledge graph
+
+`ilanga.graph.build_knowledge_graph` joins patients, facilities, conditions, medicines and viral load results into
+one graph. Now "connected questions" become walks.
+"""),
+code('''
+G = ig.build_knowledge_graph(d)
+labels = pd.Series(dict(G.nodes(data="label"))).value_counts()
+print(G); labels
+'''),
+code('''
+# Walk the graph: everything one hop from one patient
+someone = d.conditions.loc[d.conditions["condition"] == "Tuberculosis", "patient_id"].iloc[0]
+for _, target, data in G.out_edges(someone, data=True):
+    print(f"({someone}) -[:{data['type']}]-> ({target}: {G.nodes[target].get('label')} {G.nodes[target].get('name', '')})")
+'''),
+md("""
+### 🌳 Baobab — a multi-hop question
+Using the knowledge graph `G`, find every patient who has **both** `HIV` and `Tuberculosis` conditions **and** whose
+**most recent** viral load result is **not suppressed**. Store their patient IDs as a Python `set` in
+`hiv_tb_unsuppressed`. Walk the graph — no DataFrame merges. Hints: `ilanga.hint("NQ-013.3")`.
+"""),
+ex('''
+hiv_tb_unsuppressed = set()   # 👈 your code here
+''', '''
+hiv_tb_unsuppressed = set()
+for patient in G.predecessors("COND:HIV"):
+    if not G.has_edge(patient, "COND:Tuberculosis"):
+        continue
+    results = [n for n in G.successors(patient) if G.nodes[n].get("label") == "LabResult"]
+    if results:
+        latest = max(results, key=lambda n: G.nodes[n]["collected_at"])
+        if not G.nodes[latest]["suppressed"]:
+            hiv_tb_unsuppressed.add(patient)
+print(len(hiv_tb_unsuppressed), "patients need urgent clinical review")
+'''),
+md("""
+> 🤝 **Ubuntu Moment — a list of names is a list of people**
+>
+> That short list is exactly what a clinician would want on Monday morning: people living with HIV and TB whose
+> treatment may be failing. Connected data can save lives — and the same power can expose people if it leaks.
+> Graphs make re-identification easier (Module 4), so access controls matter even more.
+
+## Part 5 · The same questions in Neo4j (optional)
+
+To run this part you need a Neo4j database. The easiest option is a free **Neo4j AuraDB** instance. Store its
+connection details in Colab **Secrets** (🔑) as `NEO4J_URI`, `NEO4J_USER` and `NEO4J_PASSWORD`. If they aren't set,
+the cells below skip themselves and simply show the Cypher. **Only ever load synthetic data** into a learning database.
+"""),
+code('''
+NEO4J = None
+try:
+    from google.colab import userdata
+    creds = {k: userdata.get(k) for k in ("NEO4J_URI", "NEO4J_USER", "NEO4J_PASSWORD")}
+    import subprocess, sys
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "neo4j"], check=True)
+    from neo4j import GraphDatabase
+    NEO4J = GraphDatabase.driver(creds["NEO4J_URI"], auth=(creds["NEO4J_USER"], creds["NEO4J_PASSWORD"]))
+    NEO4J.verify_connectivity()
+    print("✅ Connected to Neo4j. Loading Ilanga (no names or ID numbers)...")
+    print(ig.load_to_neo4j(NEO4J, d))
+except Exception as err:
+    NEO4J = None
+    print("ℹ️ Neo4j not configured - showing Cypher only. (", type(err).__name__, ")")
+'''),
+code('''
+CYPHER = {
+    "Weakest referral pathways": """
+MATCH (a:Facility)-[r:REFERS_TO]->(b:Facility)
+RETURN a.name AS from, b.name AS to, r.referrals AS referrals,
+       round(100.0 * r.arrived / r.referrals, 1) AS arrival_pct
+ORDER BY arrival_pct ASC LIMIT 5""",
+    "Busiest receiving facilities": """
+MATCH (:Facility)-[r:REFERS_TO]->(b:Facility)
+RETURN b.name AS facility, sum(r.referrals) AS referrals_received
+ORDER BY referrals_received DESC""",
+    "Registered patients per facility": """
+MATCH (p:Patient)-[:REGISTERED_AT]->(f:Facility)
+RETURN f.name AS facility, f.subdistrict AS subdistrict, count(p) AS patients
+ORDER BY patients DESC""",
+}
+for title, query in CYPHER.items():
+    print(f"── {title} ──{query}\\n")
+    if NEO4J:
+        records, _, _ = NEO4J.execute_query(query, database_="neo4j")
+        display(pd.DataFrame([r.data() for r in records]))
+'''),
+md("""
+> 💻 **Code Corner — reading Cypher**
+>
+> `MATCH` describes a pattern; `(a:Facility)` is a node with a label, `-[r:REFERS_TO]->` is a directed relationship;
+> `RETURN` picks what to show. Loading uses `UNWIND $rows AS r MERGE (...)`: `UNWIND` turns a list of rows into one
+> row at a time, and `MERGE` creates something only if it doesn't already exist, which keeps loads idempotent
+> (Module 8's lesson, in graph form). See `ilanga/graph.py` for the loader.
+
+## 🚦 Quality gate
+"""),
+code('''
+passed = ilanga.tickets.check_nq013(referral_graph, shared_patients, hiv_tb_unsuppressed)
+'''),
+md("""
+## 📝 Handover note — for Dr Naidoo
+> **NQ-013 — done.**
+> *Referral network: … pathways; the weakest is … → … with …% arrival.*
+> *Shared care: … and … share the most patients (…), so their records should be linked first.*
+> *Clinical follow-up list: … patients with HIV and TB have an unsuppressed latest viral load (list shared securely with …).*
+
+## 🧭 Career Lens
+**Knowledge graph engineers** and **graph data scientists** are in demand in healthcare, life sciences, fraud and
+research. Clinical knowledge graphs link patients, terminologies (Module 6), literature and genomics. Neo4j offers
+free learning resources and certifications, and local communities such as **Graph Database Africa** connect you
+with practitioners across the continent.
+
+## 📚 Glossary
+**Graph** – nodes connected by relationships · **Property graph** – nodes and relationships with labels and
+properties · **Directed graph** – relationships have a direction · **Degree / centrality** – how connected a node is ·
+**Community detection** – finding tightly connected groups · **Knowledge graph** – a graph that links different kinds of
+entities and meaning · **Cypher** – Neo4j's query language · **MERGE / UNWIND** – idempotent creation / list-to-rows
+
+## ✅ Checkpoint
+<details><summary>1. Why is "patients with HIV and TB and an unsuppressed latest viral load" easier in a graph?</summary>It's a walk across connected nodes (patient → conditions, patient → results) rather than several joins and a window function.</details>
+<details><summary>2. What does MERGE do that CREATE doesn't?</summary>MERGE only creates the pattern if it doesn't already exist, so re-running a load doesn't make duplicates.</details>
+<details><summary>3. Two clinics share 1,200 patients. What should the district do?</summary>Prioritise linking their records (e.g. both live on e-Impilo with a shared record) and align referral and follow-up processes between them.</details>
+
+**Next up → Module 14:** Can we predict who will drop out of HIV care — fairly, and without fooling ourselves?
+"""),
+md(FOOTER),
+]
