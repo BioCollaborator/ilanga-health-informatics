@@ -37,20 +37,23 @@ inside your session, so there's no big download.
 | | 02 · Python & pandas: the PHC headcount report | NQ-002 | ✅ Ready |
 | | 03 · Building Ilanga: synthetic data done right | NQ-003 | ✅ Ready |
 | | 04 · POPIA on day one: governance & de-identification | NQ-004 | ✅ Ready |
-| **2 · Data engineering** | 05 · Data quality & patient matching (the raw layer) | NQ-005 | 🔜 |
-| | 06 · Clinical terminologies: ICD-10, LOINC, SNOMED CT, medicine codes | NQ-006 | 🔜 |
-| | 07 · Interoperability: HL7 v2, FHIR and the HNSF | NQ-007 | 🔜 |
-| | 08 · SQL, pipelines & a district data warehouse | NQ-008 | 🔜 |
-| **3 · Analytics** | 09 · Routine indicators & the HIV and TB cascades | NQ-009 | 🔜 |
-| | 10 · Epidemiology & biostatistics | NQ-010 | 🔜 |
-| | 11 · Dashboards & geospatial analysis | NQ-011 | 🔜 |
-| | 12 · Laboratory informatics & turnaround time | NQ-012 | 🔜 |
-| **4 · Advanced & capstone** | 13 · Knowledge graphs with Neo4j | NQ-013 | 🔜 |
-| | 14 · Machine learning: predicting loss to follow-up, fairly | NQ-014 | 🔜 |
-| | 15 · GenAI & NLP for multilingual clinical text | NQ-015 | 🔜 |
-| | 16 · Capstone: an e-Impilo / NHI-readiness report | NQ-016 | 🔜 |
+| **2 · Data engineering** | 05 · Data quality & patient matching (the raw layer) | NQ-005 | ✅ Ready |
+| | 06 · Clinical terminologies: ICD-10, LOINC, SNOMED CT, ATC | NQ-006 | ✅ Ready |
+| | 07 · Interoperability: HL7 v2, FHIR and the HNSF | NQ-007 | ✅ Ready |
+| | 08 · SQL, pipelines & a district data warehouse (SQLite) | NQ-008 | ✅ Ready |
+| **3 · Analytics** | 09 · Routine indicators & the HIV and TB cascades | NQ-009 | ✅ Ready |
+| | 10 · Epidemiology & biostatistics | NQ-010 | ✅ Ready |
+| | 11 · Dashboards & geospatial access analysis | NQ-011 | ✅ Ready |
+| | 12 · Laboratory informatics & turnaround time | NQ-012 | ✅ Ready |
+| **4 · Advanced & capstone** | 13 · Knowledge graphs with Neo4j | NQ-013 | ✅ Ready |
+| | 14 · Machine learning: predicting disengagement, fairly | NQ-014 | ✅ Ready |
+| | 15 · Clinical NLP, multilingual triage & responsible GenAI | NQ-015 | ✅ Ready |
+| | 16 · Capstone: the district digital health readiness report | NQ-016 | ✅ Ready |
 
 See [`docs/CURRICULUM.md`](docs/CURRICULUM.md) for learning outcomes per module.
+
+**All 16 modules are complete.** Learners who finish the capstone and pass its quality gate can generate a
+completion certificate from within Module 16.
 
 ---
 
@@ -77,6 +80,15 @@ ilanga/                 the shared data platform (Python package)
   generator.py          synthetic district generator (curated + raw layers)
   dictionary.py         data catalogue with privacy classifications
   sa_id.py              SA ID number validation & synthetic generation
+  extensions.py         v1.1 tables: medicine dispensing and referrals
+  terminology.py        ICD-10, LOINC, SNOMED CT and ATC teaching extracts
+  hl7.py / fhir.py      HL7 v2 lab messages and a FHIR R4 teaching validator
+  cleaning.py           the team's reviewed cleaning functions
+  extensions_v12.py     v1.2 tables: wards, DHIS-style monthly reports, weekly surveillance, specimen rejections
+  dashboard.py          single-file, offline HTML dashboard builder
+  extensions_v13.py     v1.3 tables: missed appointments, clinical notes + annotations, helpline messages
+  graph.py              NetworkX knowledge graph and optional Neo4j loader
+  ml.py                 shared cohort, cutoff and train/test split for Module 14
   tickets.py            quality gates and progressive hints
   brand.py              BioCollaborator notebook styling
 notebooks/              student editions (what learners open)

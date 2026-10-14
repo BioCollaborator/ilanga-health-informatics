@@ -3,3 +3,8 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .cache/
+*.db
+*.csv
+*.html
+capstone_report.md
+biocollaborator_certificate.html
