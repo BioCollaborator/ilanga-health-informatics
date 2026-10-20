@@ -131,6 +131,9 @@ print(f"Risk with HIV {risk_hiv:.2%}, without HIV {risk_no_hiv:.2%}, RR = {tb_ra
 code('''
 # A 95% CI for the risk ratio, calculated on the log scale
 if tb_rate_ratio:
+    # Rebuild the two groups here so this cell works whatever names you used above
+    exposed = d.patients["patient_id"].isin(d.conditions.loc[d.conditions["condition"] == "HIV", "patient_id"])
+    has_tb = d.patients["patient_id"].isin(d.conditions.loc[d.conditions["condition"] == "Tuberculosis", "patient_id"])
     a, n1 = has_tb[exposed].sum(), exposed.sum()
     c, n0 = has_tb[~exposed].sum(), (~exposed).sum()
     se = np.sqrt(1/a - 1/n1 + 1/c - 1/n0)

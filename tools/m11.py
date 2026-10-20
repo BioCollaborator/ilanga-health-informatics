@@ -55,7 +55,7 @@ where φ is latitude, λ is longitude (both in **radians**) and R ≈ 6,371 km.
 
 ### 🌱 Seedling — haversine distance
 Write `haversine_km(lat1, lon1, lat2, lon2)` returning kilometres. Use numpy so it also works on arrays.
-Check: Cape Town (−33.92, 18.42) to Durban (−29.86, 31.02) is about 1,275 km. Hints: `ilanga.hint("NQ-011.1")`.
+Check: Cape Town (−33.92, 18.42) to Durban (−29.86, 31.02) is about 1,271 km. Hints: `ilanga.hint("NQ-011.1")`.
 """),
 ex('''
 def haversine_km(lat1, lon1, lat2, lon2):
@@ -199,6 +199,7 @@ if kpi_table is not None and ward_access is not None:
             kpis.append({"label": label, "value": value, "unit": unit, "status": status, "subdistrict": sd})
 
     # Panel 1: monthly headcount trend per sub-district
+    fsub = d.facilities.set_index("facility_id")["subdistrict"]
     e = d.encounters.assign(sd=d.encounters["facility_id"].map(fsub), month=d.encounters["encounter_date"].dt.to_period("M"))
     trend = e.groupby(["month", "sd"]).size().unstack()
     fig1, ax = plt.subplots(figsize=(6, 3))

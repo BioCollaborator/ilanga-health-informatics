@@ -220,9 +220,11 @@ hiv_cascade
 md("""
 > 🩺 **Clinic Corner — the biggest drop is the story**
 >
-> Look for the largest fall between steps. Here, a large share of people "in care" are no longer active on
-> treatment — mostly **lost to follow-up**. That's where programme effort should go: tracing, differentiated care,
-> fewer barriers to collecting medicines. Module 14 will try to *predict* who is at risk of dropping out.
+> Look for the largest fall between steps. Here, a large share of people "in care" are not active on treatment —
+> split between people recorded as **not on ART** and people **lost to follow-up**. Check the `status` counts
+> yourself: the two groups need different action. Lost to follow-up calls for tracing, differentiated care and fewer
+> barriers to collecting medicines; not on ART calls for same-day initiation. Module 14 will try to *predict* who is
+> at risk of dropping out.
 
 ## 🚦 Quality gate
 """),
