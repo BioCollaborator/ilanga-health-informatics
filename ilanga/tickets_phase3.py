@@ -227,7 +227,7 @@ def check_nq011(haversine_km=None, ward_access=None, kpi_table=None) -> bool:
         good1 = all(abs(float(haversine_km(*t)) - float(haversine_ref(*t))) < 0.01 for t in tests)
     except Exception:
         good1 = False
-    res.append(_ok("🌱 Haversine distance (Cape Town to Durban ≈ 1,275 km)", good1, "Try ilanga.hint('NQ-011.1')"))
+    res.append(_ok("🌱 Haversine distance (Cape Town to Durban ≈ 1,271 km)", good1, "Try ilanga.hint('NQ-011.1')"))
     try:
         exp = ref_ward_access(d).set_index("ward")
         got = ward_access.set_index("ward").reindex(exp.index)
